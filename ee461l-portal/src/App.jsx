@@ -3,6 +3,32 @@ import React, { useMemo, useState, Suspense } from "react";
 // Lazy-load your Projects component (requires ./Projects.jsx)
 const Projects = React.lazy(() => import("./Projects"));
 
+// ---- simple auth api helpers ----
+const API_BASE = "http://localhost:3001";
+
+async function apiLogin(email, password) {
+  const res = await fetch(`${API_BASE}/api/login`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, password }),
+  });
+  if (!res.ok) throw new Error("Invalid email or password");
+  const { user } = await res.json();
+  return user; // { id, email, name }
+}
+
+async function apiMe() {
+  const res = await fetch(`${API_BASE}/api/me`, { credentials: "include" });
+  if (!res.ok) return null;
+  const { user } = await res.json();
+  return user; // or null
+}
+
+async function apiLogout() {
+  await fetch(`${API_BASE}/api/logout`, { method: "POST", credentials: "include" });
+}
+
 // ---------- Demo Data ----------
 const initialProjects = [
   { id: "JK3002", name: "Example Project", description: "This is an example Project." },
@@ -74,10 +100,13 @@ function LoginView({ onLogin, onSignup }) {
             <Input placeholder="Enter password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
           </div>
           <Button
-            className="w-full"
-            onClick={() => {
-              if (!username) return;
-              onLogin({ username });
+            onClick={async () => {
+              try {
+                const user = await apiLogin(username || "student@utexas.edu", password || "password123");
+                onLogin(user);
+              } catch (e) {
+                alert(e.message || "Login failed");
+              }
             }}
           >
             Sign In
