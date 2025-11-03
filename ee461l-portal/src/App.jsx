@@ -1,8 +1,7 @@
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, Suspense } from "react";
 
-// EE 461L HaaS Portal - React Mock UI
-// Screens: Login, Dashboard, Project Dashboard
-// Styling: Tailwind CSS
+// Lazy-load your Projects component (requires ./Projects.jsx)
+const Projects = React.lazy(() => import("./Projects"));
 
 // ---------- Demo Data ----------
 const initialProjects = [
@@ -119,6 +118,7 @@ function DashboardView({ user, projects, onOpenProject, onCreateProject }) {
       </header>
 
       <main className="max-w-6xl mx-auto px-6 py-8 grid gap-6 md:grid-cols-5">
+        {/* Open Project */}
         <Card className="p-6 md:col-span-3">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">Open Project</h2>
           <div className="grid gap-4 md:grid-cols-3">
@@ -144,11 +144,13 @@ function DashboardView({ user, projects, onOpenProject, onCreateProject }) {
           </div>
         </Card>
 
+        {/* Hardware Status */}
         <Card className="p-6 md:col-span-2">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">Hardware Status</h2>
           <HWQuickStatus />
         </Card>
 
+        {/* New Project */}
         <Card className="p-6 md:col-span-5">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">New Project</h2>
           <div className="grid gap-4 md:grid-cols-3">
@@ -182,6 +184,16 @@ function DashboardView({ user, projects, onOpenProject, onCreateProject }) {
                 Clear
               </Button>
             </div>
+          </div>
+        </Card>
+
+        {/* ✅ Active Projects (Lazy-Loaded MUI Section) */}
+        <Card className="p-6 md:col-span-5">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">Active Projects</h2>
+          <div className="bg-white rounded-xl p-4">
+            <Suspense fallback={<div className="text-sm text-gray-600">Loading Projects…</div>}>
+              <Projects />
+            </Suspense>
           </div>
         </Card>
       </main>
