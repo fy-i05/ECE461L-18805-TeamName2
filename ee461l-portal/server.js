@@ -3,6 +3,8 @@ import express from "express";
 import session from "express-session";
 import cors from "cors";
 import bodyParser from "body-parser";
+import mongoose from "mongoose";
+import bcrypt from "bcrypt";
 
 const app = express();
 
@@ -17,7 +19,7 @@ app.use(bodyParser.json());
 app.use(
   session({
     name: "ee461l.sid",
-    secret: "dev-only-change-me",
+    secret: process.env.SESSION_SECRET || "dev-only-change-me",
     resave: false,
     saveUninitialized: false,
     cookie: {
@@ -29,10 +31,29 @@ app.use(
   })
 );
 
-// demo users (adjust as you like)
-const USERS = [
-  { id: "u1", email: "student@utexas.edu", name: "Student", password: "password123" },
-];
+// --- MongoDB Connection ---
+const MONGODB_URI = process.env.MONGODB_URI || "mongodb://127.0.0.1:27017/ee461l_portal";
+mongoose
+  .connect(MONGODB_URI)
+  .then(() => {
+    console.log("MongoDB connected");
+  })
+  .catch((err) => {
+    console.error("MongoDB connection error:", err.message);
+  });
+
+// --- Models ---
+const userSchema = new mongoose.Schema(
+  {
+    username: { type: String, required: true, unique: true, trim: true },
+    passwordHash: { type: String, required: true },
+  },
+  { timestamps: true }
+);
+
+const User = mongoose.model("User", userSchema);
+
+// (removed in-memory USERS; now using MongoDB)
 
 // auth guard (optional example)
 function requireAuth(req, _res, next) {
@@ -45,19 +66,46 @@ app.get("/api/health", (_req, res) => res.json({ ok: true }));
 
 app.get("/api/me", (req, res) => {
   if (!req.session?.user) return res.status(401).json({ user: null });
-  const { id, email, name } = req.session.user;
-  res.json({ user: { id, email, name } });
+  const { id, username } = req.session.user;
+  res.json({ user: { id, username } });
 });
 
-app.post("/api/login", (req, res) => {
-  const { email, password } = req.body || {};
-  if (!email || !password) return res.status(400).json({ error: "Email and password required" });
+app.post("/api/signup", async (req, res) => {
+  try {
+    const { username, password } = req.body || {};
+    if (!username || !password) return res.status(400).json({ error: "Username and password required" });
 
-  const user = USERS.find((u) => u.email.toLowerCase() === String(email).toLowerCase());
-  if (!user || user.password !== password) return res.status(401).json({ error: "Invalid email or password" });
+    const existing = await User.findOne({ username: username.trim() });
+    if (existing) return res.status(409).json({ error: "Username already exists" });
 
-  req.session.user = { id: user.id, email: user.email, name: user.name };
-  res.json({ user: req.session.user });
+    const passwordHash = await bcrypt.hash(String(password), 10);
+    const doc = await User.create({ username: username.trim(), passwordHash });
+
+    req.session.user = { id: doc._id.toString(), username: doc.username };
+    return res.json({ user: req.session.user });
+  } catch (err) {
+    console.error("/api/signup error:", err.message);
+    return res.status(500).json({ error: "Signup failed" });
+  }
+});
+
+app.post("/api/login", async (req, res) => {
+  try {
+    const { username, password } = req.body || {};
+    if (!username || !password) return res.status(400).json({ error: "Username and password required" });
+
+    const user = await User.findOne({ username: username.trim() });
+    if (!user) return res.status(401).json({ error: "Invalid username or password" });
+
+    const ok = await bcrypt.compare(String(password), user.passwordHash);
+    if (!ok) return res.status(401).json({ error: "Invalid username or password" });
+
+    req.session.user = { id: user._id.toString(), username: user.username };
+    return res.json({ user: req.session.user });
+  } catch (err) {
+    console.error("/api/login error:", err.message);
+    return res.status(500).json({ error: "Login failed" });
+  }
 });
 
 app.post("/api/logout", requireAuth, (req, res) => {

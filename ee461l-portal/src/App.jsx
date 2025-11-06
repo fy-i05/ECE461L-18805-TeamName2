@@ -11,11 +11,11 @@ async function apiLogin(email, password) {
     method: "POST",
     credentials: "include",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email, password }),
+    body: JSON.stringify({ username: email, password }),
   });
   if (!res.ok) throw new Error("Invalid email or password");
   const { user } = await res.json();
-  return user; // { id, email, name }
+  return user; // { id, username }
 }
 
 async function apiMe() {
@@ -27,6 +27,25 @@ async function apiMe() {
 
 async function apiLogout() {
   await fetch(`${API_BASE}/api/logout`, { method: "POST", credentials: "include" });
+}
+
+async function apiSignup(username, password) {
+  const res = await fetch(`${API_BASE}/api/signup`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ username, password }),
+  });
+  if (!res.ok) {
+    let msg = "Signup failed";
+    try {
+      const j = await res.json();
+      if (j?.error) msg = j.error;
+    } catch {}
+    throw new Error(msg);
+  }
+  const { user } = await res.json();
+  return user; // { id, username }
 }
 
 // ---------- Demo Data ----------
@@ -102,7 +121,7 @@ function LoginView({ onLogin, onSignup }) {
           <Button
             onClick={async () => {
               try {
-                const user = await apiLogin(username || "student@utexas.edu", password || "password123");
+                const user = await apiLogin(username, password);
                 onLogin(user);
               } catch (e) {
                 alert(e.message || "Login failed");
@@ -116,9 +135,14 @@ function LoginView({ onLogin, onSignup }) {
             <span>Don’t have an account? </span>
             <button
               className="underline underline-offset-2 hover:text-gray-800"
-              onClick={() => {
+              onClick={async () => {
                 if (!username || !password) return;
-                onSignup(username, password);
+                try {
+                  const user = await apiSignup(username, password);
+                  onSignup(user);
+                } catch (e) {
+                  alert(e.message || "Signup failed");
+                }
               }}
             >
               Sign up
@@ -384,12 +408,7 @@ export default function App() {
 
   if (!user) {
     return (
-      <LoginView
-        onLogin={(u) => setUser(u)}
-        onSignup={(username) => {
-          setUser({ username });
-        }}
-      />
+      <LoginView onLogin={(u) => setUser(u)} onSignup={(u) => setUser(u)} />
     );
   }
 
