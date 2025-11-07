@@ -57,7 +57,7 @@ export default function ProjectCard({ name, id, description, members }) {
   const memberCount = Array.isArray(members) ? members.length : 0;
 
   return (
-    <div className="w-full rounded-xl bg-white p-6 shadow-sm border border-gray-100">
+    <div className="w-full flex-shrink-0 rounded-xl bg-white p-6 shadow-sm border border-gray-100">
       
       {/* Main Container: Separates Project Info from the Actions/Status group */}
       <div className="flex items-center justify-between gap-6">
@@ -106,8 +106,8 @@ export default function ProjectCard({ name, id, description, members }) {
             className="h-10 w-24 rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
           />
 
-          {/* Button Container: Separates the two buttons with gap-4 */}
-          <div className="flex items-center gap-4">
+          {/* Button Container: Separates the two buttons with gap-3 */}
+          <div className="flex items-center gap-3">
             <ActionButton 
               onClick={() => handleAction('OUT')} 
               disabled={!isQtyValid}

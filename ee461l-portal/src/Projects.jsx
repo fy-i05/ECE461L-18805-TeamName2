@@ -2,7 +2,8 @@ import React from "react";
 import ProjectCard from "./ProjectCard";
 
 /**
- * List-only renderer for projects. Header lives in App.jsx.
+ * Properly stacked project list.
+ * Removes horizontal flow issues by using block flow and spacing.
  */
 export default function Projects({ projects }) {
   if (!projects || projects.length === 0) {
@@ -16,7 +17,7 @@ export default function Projects({ projects }) {
   }
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="block space-y-6 w-full">
       {projects.map((proj) => (
         <ProjectCard
           key={proj.id}
