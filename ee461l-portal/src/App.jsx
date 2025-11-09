@@ -1,6 +1,6 @@
-import React, { useMemo, useState, Suspense } from "react";
+import React, { useMemo, useState, useEffect, Suspense } from "react";
 
-// Lazy-load your Projects component (requires ./Projects.jsx)
+// Lazy-load Projects view
 const Projects = React.lazy(() => import("./Projects"));
 
 // ---- simple auth api helpers ----
@@ -48,17 +48,38 @@ async function apiSignup(username, password) {
   return user; // { id, username }
 }
 
-// ---------- Demo Data ----------
-const initialProjects = [
-  { id: "JK3002", name: "Example Project", description: "This is an example Project." },
+/* ---------- storage helpers ---------- */
+const LS_KEYS = {
+  USERS: "ee461_users",
+  PROJECTS: "ee461_projects",
+  HW: "ee461_hw",
+  CURRENT_USER: "ee461_current_user",
+};
+
+// default seed data
+const DEFAULT_PROJECTS = [
+  { id: "JK3002", name: "Example Project", description: "This is an example Project.", members: [] },
 ];
 
-const initialHW = {
+const DEFAULT_HW = {
   HWSET1: { capacity: 250, checkedOut: 20 },
   HWSET2: { capacity: 300, checkedOut: 70 },
 };
 
-// ---------- Reusable UI ----------
+function loadJSON(key, fallback) {
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return fallback;
+    return JSON.parse(raw);
+  } catch {
+    return fallback;
+  }
+}
+function saveJSON(key, value) {
+  localStorage.setItem(key, JSON.stringify(value));
+}
+
+/* ---------- small UI atoms ---------- */
 function Card({ children, className = "" }) {
   return (
     <div className={`bg-white/90 backdrop-blur-sm rounded-2xl shadow-sm border border-gray-100 ${className}`}>
@@ -66,11 +87,9 @@ function Card({ children, className = "" }) {
     </div>
   );
 }
-
 function Label({ children }) {
   return <label className="block text-sm font-medium text-gray-700 mb-1">{children}</label>;
 }
-
 function Input(props) {
   return (
     <input
@@ -82,7 +101,6 @@ function Input(props) {
     />
   );
 }
-
 function Button({ children, variant = "primary", ...rest }) {
   const base = "px-4 py-2 rounded-xl text-sm font-semibold transition-colors disabled:opacity-60 disabled:cursor-not-allowed";
   const styles =
@@ -98,7 +116,7 @@ function Button({ children, variant = "primary", ...rest }) {
   );
 }
 
-// ---------- Login View ----------
+/* ---------- Login ---------- */
 function LoginView({ onLogin, onSignup }) {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -118,14 +136,15 @@ function LoginView({ onLogin, onSignup }) {
             <Label>Password</Label>
             <Input placeholder="Enter password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} />
           </div>
+
           <Button
-            onClick={async () => {
-              try {
-                const user = await apiLogin(username, password);
-                onLogin(user);
-              } catch (e) {
-                alert(e.message || "Login failed");
+            className="w-full"
+            onClick={() => {
+              if (!username || !password) {
+                alert("Enter username and password");
+                return;
               }
+              onLogin({ username, password });
             }}
           >
             Sign In
@@ -135,14 +154,12 @@ function LoginView({ onLogin, onSignup }) {
             <span>Don’t have an account? </span>
             <button
               className="underline underline-offset-2 hover:text-gray-800"
-              onClick={async () => {
-                if (!username || !password) return;
-                try {
-                  const user = await apiSignup(username, password);
-                  onSignup(user);
-                } catch (e) {
-                  alert(e.message || "Signup failed");
+              onClick={() => {
+                if (!username || !password) {
+                  alert("Enter username and password");
+                  return;
                 }
+                onSignup(username, password);
               }}
             >
               Sign up
@@ -154,56 +171,100 @@ function LoginView({ onLogin, onSignup }) {
   );
 }
 
-// ---------- Dashboard View ----------
-function DashboardView({ user, projects, onOpenProject, onCreateProject }) {
-  const [selectedId, setSelectedId] = useState(projects[0]?.id || "");
+/* ---------- Dashboard ---------- */
+function DashboardView({ user, projects, onOpenProject, onCreateProject, onJoinById, onLogout, hw }) {
+  const myProjects = useMemo(
+    () => projects.filter((p) => p.members?.includes(user.username)),
+    [projects, user.username]
+  );
+
+  const [selectedId, setSelectedId] = useState(myProjects[0]?.id || "");
   const [newProj, setNewProj] = useState({ name: "", id: "", description: "" });
+  const [joinId, setJoinId] = useState("");
+
+  useEffect(() => {
+    // update selected if myProjects changes
+    if (!myProjects.find((p) => p.id === selectedId)) {
+      setSelectedId(myProjects[0]?.id || "");
+    }
+  }, [myProjects, selectedId]);
 
   return (
     <div className="min-h-screen bg-gray-50">
       <header className="border-b bg-white">
         <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
           <h1 className="text-xl font-bold text-gray-900">461 Portal</h1>
-          <div className="text-sm text-gray-700">
-            Welcome, <span className="font-semibold">{user?.username || "Name"}</span>
+          <div className="flex items-center gap-3">
+            <div className="text-sm text-gray-700">
+              Welcome, <span className="font-semibold">{user?.username || "Name"}</span>
+            </div>
+            <Button variant="secondary" onClick={onLogout}>Log out</Button>
           </div>
         </div>
       </header>
 
       <main className="max-w-6xl mx-auto px-6 py-8 grid gap-6 md:grid-cols-5">
-        {/* Open Project */}
+        {/* Open existing project (only those user is a member of) */}
         <Card className="p-6 md:col-span-3">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">Open Project</h2>
           <div className="grid gap-4 md:grid-cols-3">
             <div className="md:col-span-2">
-              <Label>Project</Label>
+              <Label>Your Projects</Label>
               <select
                 className="w-full rounded-xl border border-gray-200 px-3 py-2 bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 value={selectedId}
                 onChange={(e) => setSelectedId(e.target.value)}
               >
-                {projects.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name} - {p.id}
-                  </option>
-                ))}
+                {myProjects.length === 0 ? (
+                  <option value="">No projects yet</option>
+                ) : (
+                  myProjects.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name} - {p.id}
+                    </option>
+                  ))
+                )}
               </select>
             </div>
             <div className="flex items-end">
-              <Button className="w-full" onClick={() => selectedId && onOpenProject(selectedId)}>
+              <Button className="w-full" onClick={() => selectedId && onOpenProject(selectedId)} disabled={!selectedId}>
                 Open Project
               </Button>
             </div>
           </div>
         </Card>
 
-        {/* Hardware Status */}
+        {/* Hardware quick status (global) */}
         <Card className="p-6 md:col-span-2">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">Hardware Status</h2>
-          <HWQuickStatus />
+          <HWQuickStatus hw={hw} />
         </Card>
 
-        {/* New Project */}
+        {/* Join project by ID */}
+        <Card className="p-6 md:col-span-5">
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">Join Existing Project</h2>
+          <div className="flex flex-wrap gap-3">
+            <Input
+              placeholder="Enter existing project ID"
+              value={joinId}
+              onChange={(e) => setJoinId(e.target.value)}
+              className="w-64"
+            />
+            <Button
+              onClick={() => {
+                if (!joinId) return alert("Please enter a Project ID");
+                const ok = onJoinById(joinId);
+                if (ok) {
+                  setJoinId("");
+                }
+              }}
+            >
+              Join Project
+            </Button>
+          </div>
+        </Card>
+
+        {/* Create new project */}
         <Card className="p-6 md:col-span-5">
           <h2 className="text-lg font-semibold text-gray-900 mb-4">New Project</h2>
           <div className="grid gap-4 md:grid-cols-3">
@@ -226,8 +287,8 @@ function DashboardView({ user, projects, onOpenProject, onCreateProject }) {
             <div className="md:col-span-3 flex gap-3">
               <Button
                 onClick={() => {
-                  if (!newProj.name || !newProj.id) return;
-                  onCreateProject({ id: newProj.id, name: newProj.name, description: newProj.description });
+                  if (!newProj.name || !newProj.id) return alert("Enter name and unique ID");
+                  onCreateProject(newProj);
                   setNewProj({ name: "", id: "", description: "" });
                 }}
               >
@@ -240,12 +301,12 @@ function DashboardView({ user, projects, onOpenProject, onCreateProject }) {
           </div>
         </Card>
 
-        {/* ✅ Active Projects (Lazy-Loaded MUI Section) */}
+        {/* Active Projects List (only user's) */}
         <Card className="p-6 md:col-span-5">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Active Projects</h2>
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">Your Projects</h2>
           <div className="bg-white rounded-xl p-4">
             <Suspense fallback={<div className="text-sm text-gray-600">Loading Projects…</div>}>
-              <Projects />
+              <Projects projects={myProjects} />
             </Suspense>
           </div>
         </Card>
@@ -254,8 +315,7 @@ function DashboardView({ user, projects, onOpenProject, onCreateProject }) {
   );
 }
 
-function HWQuickStatus() {
-  const hw = initialHW;
+function HWQuickStatus({ hw }) {
   return (
     <div className="grid grid-cols-2 gap-4">
       {Object.entries(hw).map(([k, v]) => {
@@ -277,9 +337,9 @@ function HWQuickStatus() {
   );
 }
 
-// ---------- Project Dashboard ----------
-function ProjectView({ project, onBack }) {
-  const [hwState, setHwState] = useState(initialHW);
+function ProjectView({ project, onBack, onLogout, user, onHWChange }) {
+  // hydrate from localStorage each mount so it's always global/shared
+  const [hwState, setHwState] = useState(() => loadJSON(LS_KEYS.HW, DEFAULT_HW));
   const [qty, setQty] = useState({ HWSET1: 0, HWSET2: 0 });
 
   const availability = useMemo(
@@ -303,6 +363,8 @@ function ProjectView({ project, onBack }) {
           next[k] = { ...prev[k], checkedOut: prev[k].checkedOut - can };
         }
       }
+      saveJSON(LS_KEYS.HW, next);
+      onHWChange(next); // bubble up to refresh dashboard status
       return next;
     });
     setQty({ HWSET1: 0, HWSET2: 0 });
@@ -318,9 +380,11 @@ function ProjectView({ project, onBack }) {
             </Button>
             <h1 className="text-xl font-bold text-gray-900">461 Portal</h1>
           </div>
-          <Button variant="secondary" onClick={onBack}>
-            Exit Project
-          </Button>
+          <div className="flex items-center gap-3">
+            <div className="text-sm text-gray-700">Signed in as <span className="font-semibold">{user.username}</span></div>
+            <Button variant="secondary" onClick={onBack}>Exit Project</Button>
+            <Button variant="secondary" onClick={onLogout}>Log out</Button>
+          </div>
         </div>
       </header>
 
@@ -380,7 +444,8 @@ function ProjectView({ project, onBack }) {
                   value={qty[k] || 0}
                   onChange={(e) => {
                     const v = parseInt(e.target.value || "0", 10);
-                    setQty((prev) => ({ ...prev, [k]: isNaN(v) ? 0 : Math.max(0, v) }));
+                    const clean = isNaN(v) ? 0 : Math.max(0, v);
+                    setQty((prev) => ({ ...prev, [k]: clean }));
                   }}
                 />
               </div>
@@ -398,30 +463,122 @@ function ProjectView({ project, onBack }) {
   );
 }
 
-// ---------- Root ----------
+/* ---------- Root ---------- */
 export default function App() {
-  const [user, setUser] = useState(null);
-  const [projects, setProjects] = useState(initialProjects);
+  // seed storage on first load
+  useEffect(() => {
+    if (!localStorage.getItem(LS_KEYS.PROJECTS)) saveJSON(LS_KEYS.PROJECTS, DEFAULT_PROJECTS);
+    if (!localStorage.getItem(LS_KEYS.HW)) saveJSON(LS_KEYS.HW, DEFAULT_HW);
+    if (!localStorage.getItem(LS_KEYS.USERS)) saveJSON(LS_KEYS.USERS, []); // start empty
+  }, []);
+
+  const [user, setUser] = useState(() => loadJSON(LS_KEYS.CURRENT_USER, null));
+  const [projects, setProjects] = useState(() => loadJSON(LS_KEYS.PROJECTS, DEFAULT_PROJECTS));
+  const [hw, setHW] = useState(() => loadJSON(LS_KEYS.HW, DEFAULT_HW));
   const [activeProjectId, setActiveProjectId] = useState(null);
+
+  // persist on change
+  useEffect(() => saveJSON(LS_KEYS.PROJECTS, projects), [projects]);
+  useEffect(() => saveJSON(LS_KEYS.HW, hw), [hw]);
+  useEffect(() => saveJSON(LS_KEYS.CURRENT_USER, user), [user]);
 
   const activeProject = useMemo(() => projects.find((p) => p.id === activeProjectId) || null, [projects, activeProjectId]);
 
+  /* ----- auth handlers ----- */
+  const handleSignup = (username, password) => {
+    const users = loadJSON(LS_KEYS.USERS, []);
+    if (users.find((u) => u.username === username)) {
+      alert("Username already exists");
+      return;
+    }
+    const nextUsers = [...users, { username, password }];
+    saveJSON(LS_KEYS.USERS, nextUsers);
+    setUser({ username });
+    // optional: auto-join no projects
+  };
+
+  const handleLogin = ({ username, password }) => {
+    const users = loadJSON(LS_KEYS.USERS, []);
+    const match = users.find((u) => u.username === username && u.password === password);
+    if (!match) {
+      alert("Invalid username/password");
+      return;
+    }
+    setUser({ username });
+  };
+
+  const handleLogout = () => {
+    setUser(null);
+    setActiveProjectId(null);
+  };
+
+  /* ----- project handlers ----- */
+  const handleCreateProject = ({ id, name, description }) => {
+    // enforce unique ID
+    if (projects.some((p) => p.id === id)) {
+      alert("Project ID already exists");
+      return;
+    }
+    const newProject = { id, name, description, members: [user.username] };
+    const next = [...projects, newProject];
+    setProjects(next);
+  };
+
+  const handleJoinById = (joinId) => {
+    const idx = projects.findIndex((p) => p.id === joinId);
+    if (idx < 0) {
+      alert("Project ID not found");
+      return false;
+    }
+    const proj = projects[idx];
+    // add membership if not present
+    if (!proj.members?.includes(user.username)) {
+      const updated = { ...proj, members: [...(proj.members || []), user.username] };
+      const next = [...projects];
+      next[idx] = updated;
+      setProjects(next);
+    }
+    setActiveProjectId(joinId);
+    alert(`Joined project ${proj.name} (${proj.id})`);
+    return true;
+  };
+
+  const handleOpenProject = (id) => {
+    const proj = projects.find((p) => p.id === id);
+    if (!proj) return;
+    // authorization: must be a member
+    if (!proj.members?.includes(user.username)) {
+      alert("You are not a member of this project. Join by ID first.");
+      return;
+    }
+    setActiveProjectId(id);
+  };
+
   if (!user) {
-    return (
-      <LoginView onLogin={(u) => setUser(u)} onSignup={(u) => setUser(u)} />
-    );
+    return <LoginView onLogin={handleLogin} onSignup={handleSignup} />;
   }
 
   if (activeProject && user) {
-    return <ProjectView project={activeProject} onBack={() => setActiveProjectId(null)} />;
+    return (
+      <ProjectView
+        project={activeProject}
+        onBack={() => setActiveProjectId(null)}
+        onLogout={handleLogout}
+        user={user}
+        onHWChange={(next) => setHW(next)}
+      />
+    );
   }
 
   return (
     <DashboardView
       user={user}
       projects={projects}
-      onOpenProject={(id) => setActiveProjectId(id)}
-      onCreateProject={(p) => setProjects([...projects, p])}
+      hw={hw}
+      onOpenProject={handleOpenProject}
+      onCreateProject={handleCreateProject}
+      onJoinById={handleJoinById}
+      onLogout={handleLogout}
     />
   );
 }
