@@ -349,7 +349,7 @@ function DashboardView({ user, projects, onOpenProject, onCreateProject, onJoinB
           <h2 className="text-lg font-semibold text-gray-900 mb-4">Your Projects</h2>
           <div className="bg-white rounded-xl p-4">
             <Suspense fallback={<div className="text-sm text-gray-600">Loading Projects…</div>}>
-              <Projects projects={myProjects} />
+            <Projects projects={myProjects} hw={hw} />
             </Suspense>
           </div>
         </Card>

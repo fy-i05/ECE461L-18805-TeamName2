@@ -5,7 +5,7 @@ import ProjectCard from "./ProjectCard";
  * Properly stacked project list.
  * Removes horizontal flow issues by using block flow and spacing.
  */
-export default function Projects({ projects }) {
+export default function Projects({ projects, hw }) {
   if (!projects || projects.length === 0) {
     return (
       <div className="rounded-2xl border border-gray-200 bg-gray-50 p-6 text-center">
@@ -25,6 +25,7 @@ export default function Projects({ projects }) {
           id={proj.id}
           description={proj.description}
           members={proj.members}
+          hw={hw} // ✅ pass live hardware data
         />
       ))}
     </div>
