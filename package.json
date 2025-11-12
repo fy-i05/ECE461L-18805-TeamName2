@@ -3,8 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "heroku-prebuild": "npm config set only false",
-    "heroku-postbuild": "cd ee461l-portal && npm install && npm run build",
+    "heroku-postbuild": "cd ee461l-portal && npm install --include=dev && npm run build",
     "start": "node ee461l-portal/server.js"
   },
   "engines": {
