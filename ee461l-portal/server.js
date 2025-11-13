@@ -81,7 +81,7 @@ const MONGODB_URI = process.env.MONGODB_URI;
 if (!MONGODB_URI) {
   console.error("ERROR: MONGODB_URI environment variable is not set!");
   console.error("Please create a .env file with your MongoDB Atlas connection string.");
-  console.error("Example: MONGODB_URI=mongodb+srv://username:password@cluster.mongodb.net/ee461l_portal");
+  console.error("Get your connection string from MongoDB Atlas: Cluster -> Connect -> Connect your application");
   process.exit(1);
 }
 
