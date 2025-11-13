@@ -5,9 +5,20 @@ import cors from "cors";
 import bodyParser from "body-parser";
 import mongoose from "mongoose";
 import bcrypt from "bcrypt";
+import path from "path";
+import { fileURLToPath } from "url";
+
+// --- Path Configuration (MUST be at the top) ---
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const app = express();
 
+// --- Static File Middleware (MUST be before CORS) ---
+// Serve static files from the Vite build output
+app.use(express.static(path.join(__dirname, "dist")));
+
+// --- CORS Configuration ---
 // Set up allowed origins
 const allowedOrigins = [
   "http://localhost:5173", // For local development
@@ -15,19 +26,23 @@ const allowedOrigins = [
 ];
 
 app.use(
-  cors({
-    origin: (origin, callback) => {
-      // Allow requests with no origin (like mobile apps or curl)
-      if (!origin) return callback(null, true);
-      if (allowedOrigins.indexOf(origin) === -1) {
-        const msg = "The CORS policy for this site does not allow access from the specified Origin.";
-        return callback(new Error(msg), false);
-      }
-      return callback(null, true);
-    },
-    credentials: true,
-  })
+  cors({
+    origin: (origin, callback) => {
+      // Allow requests with no origin (like mobile apps or curl)
+      if (!origin) return callback(null, true);
+      if (allowedOrigins.indexOf(origin) === -1) {
+        const msg =
+          "The CORS policy for this site does not allow access from the specified Origin.";
+        return callback(new Error(msg), false);
+      }
+      return callback(null, true);
+    },
+    credentials: true,
+  })
 );
+
+// --- Other Middleware ---
+app.use(bodyParser.json());
 
 app.use(
   session({
@@ -36,11 +51,11 @@ app.use(
     resave: false,
     saveUninitialized: false,
     cookie: {
-      httpOnly: true,
-      sameSite: "lax",
-      secure: process.env.NODE_ENV === "production", // TRUE in production
-      maxAge: 1000 * 60 * 60 * 8, // 8 hours
-    },
+      httpOnly: true,
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production", // TRUE in production
+      maxAge: 1000 * 60 * 60 * 8, // 8 hours
+    },
   })
 );
 
@@ -76,11 +91,17 @@ async function initializeHardware() {
         { name: "HWSET1", capacity: 250, checkedOut: 20 },
         { name: "HWSET2", capacity: 300, checkedOut: 70 },
       ]);
-      console.log("Hardware sets initialized: HWSET1 (capacity: 250), HWSET2 (capacity: 300)");
+      console.log(
+        "Hardware sets initialized: HWSET1 (capacity: 250), HWSET2 (capacity: 300)"
+      );
     } else {
       console.log(`Found ${hwSets.length} hardware set(s) in database`);
       hwSets.forEach((set) => {
-        console.log(`  - ${set.name}: ${set.capacity - set.checkedOut}/${set.capacity} available`);
+        console.log(
+          `  - ${set.name}: ${set.capacity - set.checkedOut}/${
+            set.capacity
+          } available`
+        );
       });
     }
   } catch (err) {
@@ -89,11 +110,14 @@ async function initializeHardware() {
 }
 
 // --- MongoDB Connection ---
-const MONGODB_URI = process.env.MONGODB_URI || "mongodb://127.0.0.1:27017/ee461l_portal";
+const MONGODB_URI =
+  process.env.MONGODB_URI || "mongodb://127.0.0.1:27017/ee461l_portal";
 mongoose
   .connect(MONGODB_URI)
   .then(async () => {
-    console.log(`MongoDB connected to: ${MONGODB_URI.replace(/\/\/.*@/, "//***@")}`);
+    console.log(
+      `MongoDB connected to: ${MONGODB_URI.replace(/\/\/.*@/, "//***@")}`
+    );
     console.log(`Database: ${mongoose.connection.db.databaseName}`);
     // Initialize hardware after successful connection
     await initializeHardware();
@@ -109,7 +133,7 @@ function requireAuth(req, _res, next) {
   return _res.status(401).json({ error: "Not authenticated" });
 }
 
-// routes
+// --- API Routes ---
 app.get("/api/health", (_req, res) => res.json({ ok: true }));
 
 app.get("/api/me", (req, res) => {
@@ -122,14 +146,18 @@ app.post("/api/signup", async (req, res) => {
   try {
     // Check MongoDB connection
     if (mongoose.connection.readyState !== 1) {
-      return res.status(503).json({ error: "Database not connected. Please check MongoDB is running." });
+      return res
+        .status(503)
+        .json({ error: "Database not connected. Please check MongoDB is running." });
     }
 
     const { username, password } = req.body || {};
-    if (!username || !password) return res.status(400).json({ error: "Username and password required" });
+    if (!username || !password)
+      return res.status(400).json({ error: "Username and password required" });
 
     const existing = await User.findOne({ username: username.trim() });
-    if (existing) return res.status(409).json({ error: "Username already exists" });
+    if (existing)
+      return res.status(409).json({ error: "Username already exists" });
 
     const passwordHash = await bcrypt.hash(String(password), 10);
     const doc = await User.create({ username: username.trim(), passwordHash });
@@ -150,17 +178,22 @@ app.post("/api/login", async (req, res) => {
   try {
     // Check MongoDB connection
     if (mongoose.connection.readyState !== 1) {
-      return res.status(503).json({ error: "Database not connected. Please check MongoDB is running." });
+      return res
+        .status(503)
+        .json({ error: "Database not connected. Please check MongoDB is running." });
     }
 
     const { username, password } = req.body || {};
-    if (!username || !password) return res.status(400).json({ error: "Username and password required" });
+    if (!username || !password)
+      return res.status(400).json({ error: "Username and password required" });
 
     const user = await User.findOne({ username: username.trim() });
-    if (!user) return res.status(401).json({ error: "Invalid username or password" });
+    if (!user)
+      return res.status(401).json({ error: "Invalid username or password" });
 
     const ok = await bcrypt.compare(String(password), user.passwordHash);
-    if (!ok) return res.status(401).json({ error: "Invalid username or password" });
+    if (!ok)
+      return res.status(401).json({ error: "Invalid username or password" });
 
     req.session.user = { id: user._id.toString(), username: user.username };
     return res.json({ user: req.session.user });
@@ -181,7 +214,9 @@ app.post("/api/logout", requireAuth, (req, res) => {
 app.get("/api/hardware", async (req, res) => {
   try {
     if (mongoose.connection.readyState !== 1) {
-      return res.status(503).json({ error: "Database not connected. Please check MongoDB is running." });
+      return res
+        .status(503)
+        .json({ error: "Database not connected. Please check MongoDB is running." });
     }
 
     const hardwareSets = await HardwareSet.find().sort({ name: 1 });
@@ -203,7 +238,9 @@ app.get("/api/hardware", async (req, res) => {
 app.post("/api/hardware/:name/checkout", requireAuth, async (req, res) => {
   try {
     if (mongoose.connection.readyState !== 1) {
-      return res.status(503).json({ error: "Database not connected. Please check MongoDB is running." });
+      return res
+        .status(503)
+        .json({ error: "Database not connected. Please check MongoDB is running." });
     }
 
     const { name } = req.params;
@@ -231,7 +268,9 @@ app.post("/api/hardware/:name/checkout", requireAuth, async (req, res) => {
     hwSet.checkedOut += qty;
     await hwSet.save();
 
-    console.log(`User ${req.session.user.username} checked out ${qty} units of ${hwSet.name}`);
+    console.log(
+      `User ${req.session.user.username} checked out ${qty} units of ${hwSet.name}`
+    );
     res.json({
       hardware: {
         name: hwSet.name,
@@ -248,7 +287,9 @@ app.post("/api/hardware/:name/checkout", requireAuth, async (req, res) => {
 app.post("/api/hardware/:name/checkin", requireAuth, async (req, res) => {
   try {
     if (mongoose.connection.readyState !== 1) {
-      return res.status(503).json({ error: "Database not connected. Please check MongoDB is running." });
+      return res
+        .status(503)
+        .json({ error: "Database not connected. Please check MongoDB is running." });
     }
 
     const { name } = req.params;
@@ -275,7 +316,9 @@ app.post("/api/hardware/:name/checkin", requireAuth, async (req, res) => {
     hwSet.checkedOut -= qty;
     await hwSet.save();
 
-    console.log(`User ${req.session.user.username} checked in ${qty} units of ${hwSet.name}`);
+    console.log(
+      `User ${req.session.user.username} checked in ${qty} units of ${hwSet.name}`
+    );
     res.json({
       hardware: {
         name: hwSet.name,
@@ -294,15 +337,8 @@ app.get("/api/portal-summary", requireAuth, (_req, res) => {
   res.json({ message: "Welcome to the EE461L Portal!" });
 });
 
-import path from "path";
-import { fileURLToPath } from "url";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-// Serve static files from the Vite build output
-app.use(express.static(path.join(__dirname, "dist")));
-
+// --- Catch-all Route (MUST be at the end, before listen) ---
 // For any other route that’s not an API route, serve index.html
 app.get("*", (req, res) => {
   if (!req.path.startsWith("/api")) {
@@ -310,6 +346,7 @@ app.get("*", (req, res) => {
   }
 });
 
+// --- Start Server ---
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
   console.log(`EE461L API running on http://localhost:${PORT}`);
