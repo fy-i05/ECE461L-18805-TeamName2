@@ -1,4 +1,5 @@
 // server.js
+import "dotenv/config";
 import express from "express";
 import session from "express-session";
 import cors from "cors";
@@ -76,7 +77,14 @@ async function initializeHardware() {
 }
 
 // --- MongoDB Connection ---
-const MONGODB_URI = process.env.MONGODB_URI || "mongodb://127.0.0.1:27017/ee461l_portal";
+const MONGODB_URI = process.env.MONGODB_URI;
+if (!MONGODB_URI) {
+  console.error("ERROR: MONGODB_URI environment variable is not set!");
+  console.error("Please create a .env file with your MongoDB Atlas connection string.");
+  console.error("Example: MONGODB_URI=mongodb+srv://username:password@cluster.mongodb.net/ee461l_portal");
+  process.exit(1);
+}
+
 mongoose
   .connect(MONGODB_URI)
   .then(async () => {
@@ -87,7 +95,7 @@ mongoose
   })
   .catch((err) => {
     console.error("MongoDB connection error:", err.message);
-    console.error("Make sure MongoDB is running on localhost:27017");
+    console.error("Please check your MONGODB_URI in the .env file and ensure your Atlas cluster is accessible.");
   });
 
 // auth guard (optional example)
@@ -109,7 +117,7 @@ app.post("/api/signup", async (req, res) => {
   try {
     // Check MongoDB connection
     if (mongoose.connection.readyState !== 1) {
-      return res.status(503).json({ error: "Database not connected. Please check MongoDB is running." });
+      return res.status(503).json({ error: "Database not connected. Please check your MongoDB connection." });
     }
 
     const { username, password } = req.body || {};
@@ -137,7 +145,7 @@ app.post("/api/login", async (req, res) => {
   try {
     // Check MongoDB connection
     if (mongoose.connection.readyState !== 1) {
-      return res.status(503).json({ error: "Database not connected. Please check MongoDB is running." });
+      return res.status(503).json({ error: "Database not connected. Please check your MongoDB connection." });
     }
 
     const { username, password } = req.body || {};
@@ -168,7 +176,7 @@ app.post("/api/logout", requireAuth, (req, res) => {
 app.get("/api/hardware", async (req, res) => {
   try {
     if (mongoose.connection.readyState !== 1) {
-      return res.status(503).json({ error: "Database not connected. Please check MongoDB is running." });
+      return res.status(503).json({ error: "Database not connected. Please check your MongoDB connection." });
     }
 
     const hardwareSets = await HardwareSet.find().sort({ name: 1 });
@@ -190,7 +198,7 @@ app.get("/api/hardware", async (req, res) => {
 app.post("/api/hardware/:name/checkout", requireAuth, async (req, res) => {
   try {
     if (mongoose.connection.readyState !== 1) {
-      return res.status(503).json({ error: "Database not connected. Please check MongoDB is running." });
+      return res.status(503).json({ error: "Database not connected. Please check your MongoDB connection." });
     }
 
     const { name } = req.params;
@@ -235,7 +243,7 @@ app.post("/api/hardware/:name/checkout", requireAuth, async (req, res) => {
 app.post("/api/hardware/:name/checkin", requireAuth, async (req, res) => {
   try {
     if (mongoose.connection.readyState !== 1) {
-      return res.status(503).json({ error: "Database not connected. Please check MongoDB is running." });
+      return res.status(503).json({ error: "Database not connected. Please check your MongoDB connection." });
     }
 
     const { name } = req.params;
