@@ -4,7 +4,7 @@ import React, { useMemo, useState, useEffect, Suspense } from "react";
 const Projects = React.lazy(() => import("./Projects"));
 
 // ---- simple auth api helpers ----
-const API_BASE = "http://localhost:3001";
+const API_BASE = "";
 
 async function apiLogin(email, password) {
   const res = await fetch(`${API_BASE}/api/login`, {
